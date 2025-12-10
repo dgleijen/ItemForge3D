@@ -98,7 +98,7 @@ The API manages **equip/unequip** automatically:
 - If a slot is already occupied, the old item is unequipped first.  
 - Entities are attached to player bones for visuals.  
 - On player **death** or **leave**, all equipment is removed.  
-- Items with `auto_wield = true` are automatically equipped when wielded in the hotbar (checked every 0.5s by default).  
+- Items with `auto_wield = true` are automatically equipped when wielded in the hotbar (checked every 0.1s by default).  
 
 ### Callbacks
 - `itemforge3d.on_equip(player, def, slot)` → called when an item is equipped.  
