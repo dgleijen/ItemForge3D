@@ -46,7 +46,6 @@ Here’s what you can put inside `def`:
 | `slot`            | string  | Equipment slot (`helmet`, `chest`, `legs`, `boots`, `shield`, or custom) |
 | `attach_model`    | table   | Defines the 3D model to attach when equipped |
 | `stats`           | table   | Arbitrary stats (armor, speed, jump, gravity, knockback, or custom) |
-| `auto_wield`      | boolean | If `true`, the item auto‑attaches when wielded (optional, now handled externally) |
 
 ---
 
