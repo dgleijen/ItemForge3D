@@ -1,4 +1,3 @@
-```lua
 itemforge3d = {
     defs = {},      
     equipped = {},     
