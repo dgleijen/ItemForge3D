@@ -46,6 +46,7 @@ Here’s what you can put inside `def`:
 | `slot`            | string  | Equipment slot (`helmet`, `chest`, `legs`, `boots`, `shield`, or custom) |
 | `attach_model`    | table   | Defines the 3D model to attach when wielded |
 | `stats`           | table   | Arbitrary stats (armor, speed, jump, gravity, knockback, or custom) |
+| `auto_wield`      | boolean | If `true`, the item auto‑attaches when wielded in the hotbar |
 
 ---
 
@@ -97,6 +98,7 @@ The API manages **equip/unequip** automatically:
 - If a slot is already occupied, the old item is unequipped first.  
 - Entities are attached to player bones for visuals.  
 - On player **death** or **leave**, all equipment is removed.  
+- Items with `auto_wield = true` are automatically equipped when wielded in the hotbar (checked every 0.5s by default).  
 
 ### Callbacks
 - `itemforge3d.on_equip(player, def, slot)` → called when an item is equipped.  
@@ -121,9 +123,9 @@ The API manages **equip/unequip** automatically:
 | `itemforge3d.equip(player, itemname)` | Equip an item by name |
 | `itemforge3d.get_stats(player)` | Get aggregated stats for a player |
 | `itemforge3d.refresh_stats(player)` | Force refresh of cached stats |
-| `itemforge3d.is_equipped(player, slot)` | (suggested helper) Check if a slot is filled |
-| `itemforge3d.get_equipped_item(player, slot)` | (suggested helper) Get the item definition in a slot |
-| `itemforge3d.unequip(player, slot)` | (suggested helper) Unequip an item from a slot |
+| `itemforge3d.is_equipped(player, slot)` | Check if a slot is filled |
+| `itemforge3d.get_equipped_item(player, slot)` | Get the item definition in a slot |
+| `itemforge3d.unequip(player, slot)` | Unequip an item from a slot |
 
 ---
 
@@ -152,7 +154,8 @@ itemforge3d.register("mymod", "sword", {
             rotation = {x=0, y=90, z=0}
         }
     },
-    stats = { damage = 5 }
+    stats = { damage = 5 },
+    auto_wield = true
 })
 ```
 
@@ -211,7 +214,6 @@ itemforge3d.register("mymod", "lantern", {
             rotation = {x=0, y=0, z=0}
         },
         update = function(ent, player)
-            -- Emit particles when sneaking
             if player:get_player_control().sneak then
                 core.add_particlespawner({
                     amount = 5,
@@ -222,7 +224,8 @@ itemforge3d.register("mymod", "lantern", {
                 })
             end
         end
-    }
+    },
+    auto_wield = true
 })
 ```
 
@@ -242,7 +245,6 @@ itemforge3d.register("mymod", "iron_helmet", {
     }
 })
 ```
-
 ---
 
 ### 5. Boots with Speed Bonus
@@ -256,11 +258,13 @@ itemforge3d.register("mymod", "swift_boots", {
     attach_model = {
         properties = { mesh = "boots.glb", textures = {"swift_boots.png"} },
         attach = { bone = "Legs", position = {x=0,y=0,z=0} }
-
-    }
+    },
+    auto_wield = true
 })
-
 ```
+
+---
+
 ### 6. Shield with Knockback Resistance
 ```lua
 itemforge3d.register("mymod", "sturdy_shield", {
@@ -272,15 +276,52 @@ itemforge3d.register("mymod", "sturdy_shield", {
     attach_model = {
         properties = { mesh = "shield.glb", textures = {"shield.png"} },
         attach = { bone = "Arm_Left", position = {x=0,y=5,z=0}, rotation = {x=0,y=0,z=0} }
+    },
+    auto_wield = true
+})
+```
+
+---
+
+### 7. Chestplate with Defense Bonus
+```lua
+itemforge3d.register("mymod", "iron_chestplate", {
+    type = "craftitem",
+    description = "Iron Chestplate",
+    inventory_image = "iron_chestplate.png",
+    slot = "chest",
+    stats = { armor = 4 },
+    attach_model = {
+        properties = { mesh = "chestplate.glb", textures = {"iron_chestplate.png"} },
+        attach = { bone = "Chest", position = {x=0,y=0,z=0} }
     }
 })
 ```
+
+---
+
+### 8. Legs with Jump Boost
+```lua
+itemforge3d.register("mymod", "spring_leggings", {
+    type = "craftitem",
+    description = "Spring Leggings",
+    inventory_image = "spring_leggings.png",
+    slot = "legs",
+    stats = { jump = 0.5 },
+    attach_model = {
+        properties = { mesh = "leggings.glb", textures = {"spring_leggings.png"} },
+        attach = { bone = "Legs", position = {x=0,y=0,z=0} }
+    },
+    auto_wield = true
+})
+```
+
 ---
 
 ## Summary
 
 - Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.  
-- Add `slot` to place items in equipment slots (`helmet`, `boots`, `shield`, etc.).  
+- Add `slot` to place items in equipment slots (`helmet`, `boots`, `shield`, `chest`, `legs`, etc.).  
 - Add `attach_model` to show a **3D mesh** when wielded.  
 - Use `update` for **animations, effects, or dynamic behavior**.  
 - Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).  
@@ -289,7 +330,5 @@ itemforge3d.register("mymod", "sturdy_shield", {
 - Duplicate registrations log a warning.  
 - The registered item will be named `modname:name`.  
 - Optional callbacks `on_equip` and `on_unequip` let mods hook into lifecycle events.  
-- Helper functions (`equip`, `get_stats`, `refresh_stats`, etc.) make it easy to manage equipment programmatically.  
-
----
-
+- Helper functions (`equip`, `get_stats`, `refresh_stats`, `is_equipped`, `get_equipped_item`, `unequip`) make it easy to manage equipment programmatically.  
+- Items can opt‑in to **auto‑attach on wield** by setting `auto_wield = true`.  
