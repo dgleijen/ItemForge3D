@@ -11,7 +11,7 @@ local function is_valid_slot(slot)
     for _, s in ipairs(IFORGE.slots) do
         if s == slot then return true end
     end
-    return false
+    return false 
 end
 
 local function get_entity_from_pool()
@@ -171,6 +171,7 @@ local function cleanup_entity_pool()
     end
 end
 
+
 local last_cleanup = 0
 core.register_globalstep(function(dtime)
     last_cleanup = last_cleanup + dtime
@@ -178,7 +179,7 @@ core.register_globalstep(function(dtime)
         cleanup_entity_pool()
         last_cleanup = 0
     end
-end
+end)
 
 function IFORGE.get_equipped(player)
     if not player or not player:is_player() then return {} end
@@ -232,5 +233,6 @@ function IFORGE.get_stats(player)
     
     return player_stats
 end
+
 
 itemforge3d = ITEMFORGE
