@@ -1,9 +1,3 @@
-# ItemForge3D – 3D Equipment System for Minetest
-
-ItemForge3D is a powerful modding API that allows you to register **tools, nodes, and craftitems** with **3D models**, attach them to players, and manage **equipment slots** and **stats**.
-
----
-
 ## How to Register Items
 
 Use the function:
