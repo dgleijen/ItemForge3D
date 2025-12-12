@@ -1,59 +1,91 @@
-itemforge3d = {
-    defs = {},      
-    equipped = {},     
-    entities = {},   
-    cached_stats = {}, 
-    slots = { "shield", "helmet", "chest", "legs", "boots" },
+local REGISTERED_ITEMS = {}
+local EQUIPED_ITEMS = {}
+local ENTITIES = {}
+local ENTITY_POOL = {}
+local ITEM_ID_COUNTER = 0 
 
-    on_equip = nil, 
-    on_unequip = nil,   
-}
+local IFORGE = {}
+IFORGE.slots = { "shield", "helmet", "chest", "legs", "boots" }
 
 local function is_valid_slot(slot)
-    for _, s in ipairs(itemforge3d.slots) do
+    for _, s in ipairs(IFORGE.slots) do
         if s == slot then return true end
-        return false
+    end
+    return false
+end
+
+local function get_entity_from_pool()
+    local ent = table.remove(ENTITY_POOL)
+    if not ent then
+        ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_entity")
+    end
+    return ent
+end
+
+local function return_entity_to_pool(entity)
+    if entity then
+        entity:set_properties({
+            visual = "mesh",
+            mesh = "blank.glb",
+            textures = {"blank.png"},
+            visual_size = {x=1, y=1},
+            pointable = false,
+            physical = false,
+            collide_with_objects = false,
+        })
+        
+        entity:set_detach()
+        entity:set_properties({visual_size = {x=0, y=0}})
+        
+        table.insert(ENTITY_POOL, entity)
     end
 end
 
-function itemforge3d.register(modname, name, def)
-    local full_name = modname .. ":" .. name
+function IFORGE.register(modname, item_name, register_def)
+    local full_name = modname .. ":" .. item_name
 
-    if itemforge3d.defs[full_name] then
-        core.log("warning", "[itemforge3d] Duplicate registration for " .. full_name)
+    if REGISTERED_ITEMS[full_name] then
+        core.log("error", "[itemforge3d] Duplicate registration for " .. full_name)
+        return false
     end
 
-    if def.slot and not is_valid_slot(def.slot) then
-        core.log("warning", "[itemforge3d] Unknown slot '" .. def.slot .. "' for " .. full_name)
+    if register_def.slot and not is_valid_slot(register_def.slot) then
+        core.log("warning", "[itemforge3d] Unknown slot '" .. register_def.slot .. "' for " .. full_name)
     end
 
-    if def.type == "tool" then
-        core.register_tool(full_name, def)
-    elseif def.type == "node" then
-        core.register_node(full_name, def)
-    elseif def.type == "craftitem" then
-        core.register_craftitem(full_name, def)
+    ITEM_ID_COUNTER = ITEM_ID_COUNTER + 1
+    register_def.id = ITEM_ID_COUNTER
+    register_def.name = full_name
+
+    if register_def.type == "tool" then
+        core.register_tool(full_name, register_def)
+    elseif register_def.type == "node" then
+        core.register_node(full_name, register_def)
+    elseif register_def.type == "craftitem" then
+        core.register_craftitem(full_name, register_def)
     else
-        core.log("warning", "[itemforge3d] Unknown type for " .. full_name)
+        core.log("warning", "[itemforge3d] Unknown type '" .. tostring(register_def.type) .. "' for " .. full_name)
+        return false
     end
 
-    if def.craft then
-        core.register_craft(def.craft)
-    elseif def.recipe then
+    if register_def.craft then
+        core.register_craft(register_def.craft)
+    elseif register_def.recipe then
         core.register_craft({
             output = full_name,
-            recipe = def.recipe
+            recipe = register_def.recipe
         })
     end
 
-    itemforge3d.defs[full_name] = def
+    REGISTERED_ITEMS[full_name] = register_def
+    return true
 end
 
 core.register_entity("itemforge3d:wield_entity", {
     initial_properties = {
         visual = "mesh",
         mesh = "blank.glb",
-        textures = {},
+        textures = {"blank.png"},
         visual_size = {x=1, y=1},
         pointable = false,
         physical = false,
@@ -61,170 +93,144 @@ core.register_entity("itemforge3d:wield_entity", {
     },
 })
 
-local function attach_model(player, def)
+function IFORGE.equip(player, def)
+    if not player or not player:is_player() then
+        core.log("error", "[itemforge3d] Invalid player object in IFORGE.equip")
+        return false
+    end
+
     local pname = player:get_player_name()
-    local ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_entity")
-    if not ent then return end
+    local slot = def.slot or "generic"
+
+    ENTITIES[pname] = ENTITIES[pname] or {}
+    EQUIPED_ITEMS[pname] = EQUIPED_ITEMS[pname] or {}
+
+    if ENTITIES[pname][slot] then
+        IFORGE.unequip(player, slot)
+    end
+
+    local ent = get_entity_from_pool()
+    if not ent then
+        core.log("error", "[itemforge3d] Failed to get entity from pool for " .. pname)
+        return false
+    end
 
     if def.attach_model and def.attach_model.properties then
         ent:set_properties(def.attach_model.properties)
-    else
-        ent:set_properties({
-            mesh = "blank.glb",
-            textures = {def.inventory_image or "blank.png"},
-            visual_size = {x=0, y=0}
-        })
     end
 
     local a = def.attach_model and def.attach_model.attach or {}
     ent:set_attach(player,
         a.bone or "Arm_Right",
-        a.position or {x=0,y=5,z=0},
-        a.rotation or {x=0,y=90,z=0},
+        a.position or {x=0,y=0,z=0},
+        a.rotation or {x=0,y=0,z=0},
         a.forced_visible or false
     )
 
-    local slot = def.slot or "weapon"
-    itemforge3d.entities[pname] = itemforge3d.entities[pname] or {}
-    itemforge3d.entities[pname][slot] = ent
+    ENTITIES[pname][slot] = ent
+    EQUIPED_ITEMS[pname][slot] = def
 
-    itemforge3d.equipped[pname] = itemforge3d.equipped[pname] or {}
-    itemforge3d.equipped[pname][slot] = def
+    if def.on_equip then
+        def.on_equip(player, ent, slot, def)
+    end
 
-    itemforge3d.refresh_stats(player)
+    return true
+end
 
-    if itemforge3d.on_equip then
-        itemforge3d.on_equip(player, def, slot)
+function IFORGE.unequip(player, slot)
+    if not player or not player:is_player() then
+        core.log("error", "[itemforge3d] Invalid player object in IFORGE.unequip")
+        return
+    end
+
+    local pname = player:get_player_name()
+    
+    local def = EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot]
+
+    if ENTITIES[pname] and ENTITIES[pname][slot] then
+        return_entity_to_pool(ENTITIES[pname][slot])
+        ENTITIES[pname][slot] = nil
+    end
+
+    if EQUIPED_ITEMS[pname] then
+        EQUIPED_ITEMS[pname][slot] = nil
+    end
+
+    if def and def.on_unequip then
+        def.on_unequip(player, slot, def)
     end
 end
 
-function itemforge3d.equip(player, itemname)
-    local pname = player:get_player_name()
-    local def = itemforge3d.defs[itemname]
-    if not def or not def.slot then return end
-
-    if itemforge3d.entities[pname] and itemforge3d.entities[pname][def.slot] then
-        local old_def = itemforge3d.equipped[pname][def.slot]
-        itemforge3d.entities[pname][def.slot]:remove()
-        itemforge3d.entities[pname][def.slot] = nil
-        itemforge3d.equipped[pname][def.slot] = nil
-
-        if itemforge3d.on_unequip and old_def then
-            itemforge3d.on_unequip(player, old_def, def.slot)
-        end
-    end
-
-    attach_model(player, def)
-end
-
-core.register_on_leaveplayer(function(player)
-    local pname = player:get_player_name()
-    if itemforge3d.entities[pname] then
-        for slot, ent in pairs(itemforge3d.entities[pname]) do
+local function cleanup_entity_pool()
+    local max_pool_size = 10
+    while #ENTITY_POOL > max_pool_size do
+        local ent = table.remove(ENTITY_POOL)
+        if ent then
             ent:remove()
-            if itemforge3d.on_unequip and itemforge3d.equipped[pname] and itemforge3d.equipped[pname][slot] then
-                itemforge3d.on_unequip(player, itemforge3d.equipped[pname][slot], slot)
-            end
-        end
-        itemforge3d.entities[pname] = nil
-    end
-    itemforge3d.equipped[pname] = nil
-    itemforge3d.cached_stats[pname] = nil
-end)
-
-core.register_on_dieplayer(function(player)
-    local pname = player:get_player_name()
-    if itemforge3d.entities[pname] then
-        for slot, ent in pairs(itemforge3d.entities[pname]) do
-            ent:remove()
-            if itemforge3d.on_unequip and itemforge3d.equipped[pname] and itemforge3d.equipped[pname][slot] then
-                itemforge3d.on_unequip(player, itemforge3d.equipped[pname][slot], slot)
-            end
-        end
-        itemforge3d.entities[pname] = nil
-    end
-    itemforge3d.equipped[pname] = nil
-    itemforge3d.cached_stats[pname] = nil
-end)
-
-function itemforge3d.refresh_stats(player)
-    local pname = player:get_player_name()
-    local stats = {}
-    if itemforge3d.equipped[pname] then
-        for slot, def in pairs(itemforge3d.equipped[pname]) do
-            if def.stats then
-                for k,v in pairs(def.stats) do
-                    stats[k] = (stats[k] or 0) + v
-                end
-            end
         end
     end
-    itemforge3d.cached_stats[pname] = stats
 end
 
-function itemforge3d.get_stats(player)
-    local pname = player:get_player_name()
-    return itemforge3d.cached_stats[pname] or {}
-end
-
-local last_wielded = {}
-local timer = 0
-local interval = 0.1
+local last_cleanup = 0
 core.register_globalstep(function(dtime)
-    timer = timer + dtime
-    if timer < interval then return end
-    timer = 0
+    last_cleanup = last_cleanup + dtime
+    if last_cleanup > 300 then
+        cleanup_entity_pool()
+        last_cleanup = 0
+    end
+end
 
-    for _, player in ipairs(core.get_connected_players()) do
-        local pname = player:get_player_name()
-        local wielded = player:get_wielded_item():get_name()
+function IFORGE.get_equipped(player)
+    if not player or not player:is_player() then return {} end
+    local pname = player:get_player_name()
+    return EQUIPED_ITEMS[pname] or {}
+end
 
-        if wielded ~= last_wielded[pname] then
-            last_wielded[pname] = wielded
-            local def = itemforge3d.defs[wielded]
+function IFORGE.list_equipped(player)
+    if not player or not player:is_player() then return {} end
+    local pname = player:get_player_name()
+    local equipped = EQUIPED_ITEMS[pname] or {}
+    local list = {}
+    for slot, def in pairs(equipped) do
+        table.insert(list, {slot = slot, item = def})
+    end
+    return list
+end
 
-            if def and def.auto_wield then
-                itemforge3d.equip(player, wielded)
-            else
-                for slot, equipped in pairs(itemforge3d.equipped[pname] or {}) do
-                    if equipped and equipped.auto_wield then
-                        itemforge3d.unequip(player, slot)
-                    end
+function IFORGE.get_slot(player, slot)
+    if not player or not player:is_player() then return nil end
+    local pname = player:get_player_name()
+    return EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot] or nil
+end
+
+function IFORGE.get_stats(player)
+    if not player or not player:is_player() then return {} end
+    local player_stats = {}
+
+    local equipped_items = IFORGE.get_equipped(player)
+    
+    for stat_name in pairs(player_stats) do
+        player_stats[stat_name] = 0
+    end
+    
+    for slot, item_def in pairs(equipped_items) do
+        if item_def.stats then
+            for _, stat in ipairs(item_def.stats) do
+                local stat_name = stat.type
+                local stat_value = stat.value or 0
+                if not player_stats[stat_name] then
+                    player_stats[stat_name] = 0
+                end
+                if stat.modifier == "multiply" then
+                    player_stats[stat_name] = player_stats[stat_name] * stat_value
+                else
+                    player_stats[stat_name] = player_stats[stat_name] + stat_value
                 end
             end
         end
     end
-end)
-core.register_on_leaveplayer(function(player)
-    local pname = player:get_player_name()
-    last_wielded[pname] = nil
-end)
-
-function itemforge3d.is_equipped(player, slot)
-    local pname = player:get_player_name()
-    return itemforge3d.equipped[pname] and itemforge3d.equipped[pname][slot] ~= nil
+    
+    return player_stats
 end
 
-function itemforge3d.get_equipped_item(player, slot)
-    local pname = player:get_player_name()
-    if itemforge3d.equipped[pname] then
-        return itemforge3d.equipped[pname][slot]
-    end
-    return nil
-end
-
-function itemforge3d.unequip(player, slot)
-    local pname = player:get_player_name()
-    if itemforge3d.entities[pname] and itemforge3d.entities[pname][slot] then
-        local old_def = itemforge3d.equipped[pname][slot]
-        itemforge3d.entities[pname][slot]:remove()
-        itemforge3d.entities[pname][slot] = nil
-        itemforge3d.equipped[pname][slot] = nil
-
-        if itemforge3d.on_unequip and old_def then
-            itemforge3d.on_unequip(player, old_def, slot)
-        end
-
-        itemforge3d.refresh_stats(player)
-    end
-end
+itemforge3d = ITEMFORGE
