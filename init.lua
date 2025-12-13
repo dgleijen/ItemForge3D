@@ -6,11 +6,8 @@ function IFORGE.register(modname, item_name, register_def)
     local full_name = modname .. ":" .. item_name
 
     if REGISTERED_ITEMS[full_name] then
-        core.log("error", "[itemforge3d] Duplicate registration for " .. full_name)
         return false
     end
-
-    register_def.name = full_name
 
     if register_def.type == "tool" then
         core.register_tool(full_name, register_def)
@@ -19,7 +16,6 @@ function IFORGE.register(modname, item_name, register_def)
     elseif register_def.type == "craftitem" then
         core.register_craftitem(full_name, register_def)
     else
-        core.log("warning", "[itemforge3d] Unknown type '" .. tostring(register_def.type) .. "' for " .. full_name)
         return false
     end
 
@@ -54,26 +50,36 @@ function IFORGE.attach_entity(player, item_name)
         attach.rot or {x=0,y=0,z=0}
     )
 
-    ENTITIES[player:get_player_name()] = {entity = ent, item_name = item_name}
+    local name = player:get_player_name()
+    ENTITIES[name] = ENTITIES[name] or {}
+    table.insert(ENTITIES[name], {entity = ent, item_name = item_name})
 
     if def.on_attach then def.on_attach(player, ent) end
     return true
 end
 
-function IFORGE.detach_entity(player)
+function IFORGE.detach_entity(player, item_name)
     local name = player:get_player_name()
-    local entry = ENTITIES[name]
-    if entry and entry.entity then
-        local ent = entry.entity
-        ent:set_detach()
-        ent:remove()
-        ENTITIES[name] = nil
+    local entries = ENTITIES[name]
+    if not entries then return false end
 
-        local def = REGISTERED_ITEMS[entry.item_name]
-        if def and def.on_detach then
-            def.on_detach(player, ent)
+    for i, entry in ipairs(entries) do
+        if not item_name or entry.item_name == item_name then
+            local ent = entry.entity
+            ent:set_detach()
+            ent:remove()
+
+            local def = REGISTERED_ITEMS[entry.item_name]
+            if def and def.on_detach then
+                def.on_detach(player, ent)
+            end
+
+            table.remove(entries, i)
+            if #entries == 0 then
+                ENTITIES[name] = nil
+            end
+            return true
         end
-        return true
     end
     return false
 end
