@@ -58,28 +58,28 @@ Inside `attach_model`, you can define:
 ### Example `properties`
 ```lua
 properties = {
-    mesh = "sword.glb",
-    textures = {"sword_texture.png"},
-    visual_size = {x=1, y=1}
+mesh = "sword.glb",
+textures = {"sword_texture.png"},
+visual_size = {x=1, y=1}
 }
 ```
 
 ### Example `attach`
 ```lua
 attach = {
-    bone = "Arm_Right",
-    position = {x=0, y=5, z=0},
-    rotation = {x=0, y=90, z=0},
-    forced_visible = false
+bone = "Arm_Right",
+position = {x=0, y=5, z=0},
+rotation = {x=0, y=90, z=0},
+forced_visible = false
 }
 ```
 
 ### Example `update`
 ```lua
 update = function(ent, player)
-    if player:get_player_control().dig then
-        ent:set_animation({x=0,y=20}, 15, 0) -- swing animation
-    end
+if player:get_player_control().dig then
+ent:set_animation({x=0,y=20}, 15, 0) -- swing animation
+end
 end
 ```
 
@@ -103,14 +103,21 @@ The API manages **equip/unequip** automatically:
 - Entities are attached to player bones for visuals.  
 - On player **death** or **leave**, all equipment is removed.  
 
+### Equipment Persistence
+
+- Equipment is automatically saved when players leave the server
+- Equipment is restored when players rejoin the server
+- Only items in equipment slots are persisted (not generic equipped items)
+- The system uses Minetest's mod storage to save equipment data
+
 ### Callbacks
-- `on_equip(player, ent, slot, def)` → called when an item is equipped.  
-- `on_unequip(player, slot, def)` → called when an item is unequipped.  
+- `on_equip(player, ent, slot, def)` → called when an item is equipped.
+- `on_unequip(player, slot, def)` → called when an item is unequipped.
 
 ## Stats System
 
-- Stats from all equipped items are **aggregated** automatically.  
-- Use `itemforge3d.get_stats(player)` to retrieve aggregated stats.  
+- Stats from all equipped items are **aggregated** automatically.
+- Use `itemforge3d.get_stats(player)` to retrieve aggregated stats.
 
 > Stats are **not applied automatically** to gameplay — mods must use them (e.g. adjust physics, damage, etc.).
 
@@ -297,14 +304,15 @@ itemforge3d.register("mymod", "spring_leggings", {
 
 ## Summary
 
-- Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.  
-- Add `slot` to place items in equipment slots (`helmet`, `boots`, `shield`, `chest`, `legs`).  
-- Add `attach_model` to show a **3D mesh** when equipped.  
-- Use `update` for **animations, effects, or dynamic behavior**.  
-- Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).  
-- Stats are arbitrary and aggregated by the API, but not applied automatically.  
-- Equipment is cleaned up on **death** or **leaveplayer**.  
-- Duplicate registrations log a warning.  
-- The registered item will be named `modname:name`.  
-- Optional callbacks `on_equip` and `on_unequip` let mods hook into lifecycle events.  
+- Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.
+- Add `slot` to place items in equipment slots (`helmet`, `boots`, `shield`, `chest`, `legs`).
+- Add `attach_model` to show a **3D mesh** when equipped.
+- Use `update` for **animations, effects, or dynamic behavior**.
+- Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).
+- Stats are arbitrary and aggregated by the API, but not applied automatically.
+- Equipment is cleaned up on **death** or **leaveplayer**.
+- **Equipment now persists between sessions** - players keep their equipped items when logging out and back in.
+- Duplicate registrations log a warning.
+- The registered item will be named `modname:name`.
+- Optional callbacks `on_equip` and `on_unequip` let mods hook into lifecycle events.
 - Helper functions (`equip`, `get_stats`, `list_equipped`, `get_slot`, `unequip`) make it easy to manage equipment programmatically.
