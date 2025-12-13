@@ -24,6 +24,12 @@ Registers a tool, node, or craftitem under the name `modname:name`.
 
 ---
 
+## Attachment Management
+- `itemforge3d.get_attached_items(player)` → returns a list of item names currently attached to the player  
+- `itemforge3d.reload_attached_items(player, item_list)` → re‑attaches items from a saved list  
+
+---
+
 ## API Reference
 
 | Function | Description |
@@ -31,6 +37,8 @@ Registers a tool, node, or craftitem under the name `modname:name`.
 | `itemforge3d.register(modname, name, def)` | Register a tool, node, or craftitem |
 | `itemforge3d.attach_entity(player, item_name)` | Attach an item’s 3D model to a player |
 | `itemforge3d.detach_entity(player, item_name)` | Detach a specific item’s 3D model from a player |
+| `itemforge3d.get_attached_items(player)` | Get a list of attached item names for a player |
+| `itemforge3d.reload_attached_items(player, item_list)` | Reattach items from a saved list |
 
 ---
 
@@ -95,6 +103,18 @@ itemforge3d.register("mymod", "lantern", {
 })
 ```
 
+### Saving and Reloading Attachments
+```lua
+-- Save current attachments
+local saved = itemforge3d.get_attached_items(player)
+
+-- Detach everything
+while itemforge3d.detach_entity(player) do end
+
+-- Later, reload them
+itemforge3d.reload_attached_items(player, saved)
+```
+
 ---
 
 ## Summary
@@ -102,6 +122,5 @@ itemforge3d.register("mymod", "lantern", {
 - Attach visuals with `itemforge3d.attach_entity`.  
 - Detach visuals with `itemforge3d.detach_entity`.  
 - Multiple items can be attached per player.  
+- Use `get_attached_items` and `reload_attached_items` to snapshot and restore attachments.  
 - Optional callbacks let you hook into attach/detach events.  
-
-

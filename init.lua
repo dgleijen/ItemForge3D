@@ -32,12 +32,17 @@ function IFORGE.register(modname, item_name, register_def)
     return true
 end
 
-function IFORGE.attach_entity(player, item_name)
+-- Attach entity with full ItemStack preservation
+function IFORGE.attach_entity(player, itemstack, opts)
+    opts = opts or {}
+    if not player or not itemstack or itemstack:is_empty() then return false end
+
+    local item_name = itemstack:get_name()
     local def = REGISTERED_ITEMS[item_name]
     if not def then return false end
 
     local ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_entity")
-    if not ent or not player then return false end
+    if not ent then return false end
 
     if def.properties then
         ent:set_properties(def.properties)
@@ -52,7 +57,12 @@ function IFORGE.attach_entity(player, item_name)
 
     local name = player:get_player_name()
     ENTITIES[name] = ENTITIES[name] or {}
-    table.insert(ENTITIES[name], {entity = ent, item_name = item_name})
+    table.insert(ENTITIES[name], {
+        entity    = ent,
+        item_name = item_name,
+        stack     = ItemStack(itemstack), -- full copy of stack with metadata
+        id        = opts.id,              -- optional slot/identifier
+    })
 
     if def.on_attach then def.on_attach(player, ent) end
     return true
@@ -95,5 +105,49 @@ core.register_entity("itemforge3d:wield_entity", {
         collide_with_objects = false,
     },
 })
+
+function IFORGE.get_attached_items(player)
+    local name = player:get_player_name()
+    local entries = ENTITIES[name]
+    if not entries then return {} end
+
+    local list = {}
+    for _, entry in ipairs(entries) do
+        table.insert(list, entry.item_name)
+    end
+    return list
+end
+
+-- Return full entries including ItemStack
+function IFORGE.get_attached_entries(player)
+    local name = player:get_player_name()
+    local entries = ENTITIES[name]
+    if not entries then return {} end
+
+    local out = {}
+    for i, entry in ipairs(entries) do
+        out[i] = {
+            item_name = entry.item_name,
+            id        = entry.id,
+            stack     = ItemStack(entry.stack), -- copy to avoid mutation
+        }
+    end
+    return out
+end
+
+function IFORGE.reload_attached_items(player, item_list)
+    if not item_list then return false end
+    for _, entry in ipairs(item_list) do
+        IFORGE.attach_entity(player, entry.stack, { id = entry.id })
+        local def = REGISTERED_ITEMS[entry.item_name]
+        if def and def.on_reload then
+            local name = player:get_player_name()
+            local entries = ENTITIES[name]
+            local last = entries and entries[#entries]
+            if last then def.on_reload(player, last.entity, last) end
+        end
+    end
+    return true
+end
 
 itemforge3d = IFORGE
