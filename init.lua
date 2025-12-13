@@ -272,34 +272,38 @@ function IFORGE.list_equipped(player)
     return list
 end
 
-
 function IFORGE.get_stats(player)
     if not player or not player:is_player() then return {} end
     local player_stats = {}
-
     local equipped_items = IFORGE.get_equipped(player)
-    
-    for stat_name in pairs(player_stats) do
-        player_stats[stat_name] = 0
-    end
-    
+
     for slot, item_def in pairs(equipped_items) do
-        if item_def.stats then
-            for _, stat in ipairs(item_def.stats) do
+        if item_def.def.stats then
+            for _, stat in ipairs(item_def.def.stats) do
                 local stat_name = stat.type
                 local stat_value = stat.value or 0
+
+                if stat_name == "durability" and item_def.stack then
+                    -- calculate durability percentage from wear
+                    local wear = item_def.stack:get_wear()
+                    stat_value = math.max(0, 100 - (wear / 65535) * 100)
+                end
+
                 if not player_stats[stat_name] then
                     player_stats[stat_name] = 0
                 end
+
                 if stat.modifier == "multiply" then
                     player_stats[stat_name] = player_stats[stat_name] * stat_value
+                elseif stat.modifier == "set" then
+                    player_stats[stat_name] = stat_value
                 else
                     player_stats[stat_name] = player_stats[stat_name] + stat_value
                 end
             end
         end
     end
-    
+
     return player_stats
 end
 
