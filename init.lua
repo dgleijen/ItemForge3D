@@ -52,7 +52,7 @@ function IFORGE.attach_entity(player, itemstack, opts)
         attach.bone or "",
         attach.pos or {x=0,y=0,z=0},
         attach.rot or {x=0,y=0,z=0},
-        attach.force_visible or false,
+        attach.force_visible or false
     )
 
     local name = player:get_player_name()
