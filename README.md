@@ -1,3 +1,5 @@
+# ItemForge3D API (Updated)
+
 ## How to Register Items
 
 Use the function:
@@ -11,6 +13,8 @@ itemforge3d.register(modname, name, def)
 - `def`: A table with item definition and optional 3D model info.  
 
 > The final registered item will be named as `modname:name`, for example: `"mymod:sword"`.
+
+---
 
 ## Supported Item Types
 
@@ -28,9 +32,11 @@ You can register **three kinds of items**:
    - Misc items (food, gems, scrolls, lanterns).  
    - Registered with `core.register_craftitem`.
 
+---
+
 ## Definition Fields
 
-Here's what you can put inside `def`:
+Here’s what you can put inside `def`:
 
 | Field             | Type    | Description |
 |-------------------|---------|-------------|
@@ -39,11 +45,11 @@ Here's what you can put inside `def`:
 | `inventory_image` | string  | Icon texture for inventory |
 | `recipe`          | table   | Shaped craft recipe (shorthand) |
 | `craft`           | table   | Full craft definition (shapeless, cooking, fuel, etc.) |
-| `slot`            | string  | Equipment slot (`helmet`, `chest`, `legs`, `boots`, `shield`) |
-| `attach_model`    | table   | Defines the 3D model to attach when equipped |
-| `stats`           | table   | Arbitrary stats (armor, speed, jump, gravity, knockback, or custom) |
-| `on_equip`        | function| Called when item is equipped |
-| `on_unequip`      | function| Called when item is unequipped |
+| `attach`    | table   | Defines the 3D model to attach when used |
+| `on_attach`       | function| Called when entity is attached |
+| `on_detach`       | function| Called when entity is detached |
+
+---
 
 ## attach_model Fields
 
@@ -58,84 +64,65 @@ Inside `attach_model`, you can define:
 ### Example `properties`
 ```lua
 properties = {
-mesh = "sword.glb",
-textures = {"sword_texture.png"},
-visual_size = {x=1, y=1}
+    mesh = "sword.glb",
+    textures = {"sword_texture.png"},
+    visual_size = {x=1, y=1}
 }
 ```
 
 ### Example `attach`
 ```lua
 attach = {
-bone = "Arm_Right",
-position = {x=0, y=5, z=0},
-rotation = {x=0, y=90, z=0},
-forced_visible = false
+    bone = "Arm_Right",
+    position = {x=0, y=5, z=0},
+    rotation = {x=0, y=90, z=0},
+    forced_visible = false
 }
 ```
 
 ### Example `update`
 ```lua
 update = function(ent, player)
-if player:get_player_control().dig then
-ent:set_animation({x=0,y=20}, 15, 0) -- swing animation
-end
+    if player:get_player_control().dig then
+        ent:set_animation({x=0,y=20}, 15, 0) -- swing animation
+    end
 end
 ```
 
-## Equipment Slots
+---
 
-Available equipment slots:
-- `helmet`
-- `chest`
-- `legs`
-- `boots`
-- `shield`
+## Attach/Detach Lifecycle
 
-Items without a slot are tracked as generic equipped items.
+The API manages **attach/detach** automatically:
 
-## Equipment Lifecycle
+- `itemforge3d.attach_entity(player, item_name)` → attaches the item’s 3D model to the player.  
+- `itemforge3d.detach_entity(player)` → detaches the currently attached entity from the player.  
+- Entities are pooled and recycled for performance.  
+- Optional callbacks `on_attach` and `on_detach` are triggered when visuals are shown/hidden.
 
-The API manages **equip/unequip** automatically:
-
-- `itemforge3d.equip(player, def)` → equips an item into its slot.  
-- If a slot is already occupied, the old item is unequipped first.  
-- Entities are attached to player bones for visuals.  
-- On player **death** or **leave**, all equipment is removed.  
-
-### Equipment Persistence
-
-- Equipment is automatically saved when players leave the server
-- Equipment is restored when players rejoin the server
-- Only items in equipment slots are persisted (not generic equipped items)
-- The system uses Minetest's mod storage to save equipment data
-
-### Callbacks
-- `on_equip(player, ent, slot, def)` → called when an item is equipped.
-- `on_unequip(player, slot, def)` → called when an item is unequipped.
+---
 
 ## Stats System
 
-- Stats from all equipped items are **aggregated** automatically.
-- Use `itemforge3d.get_stats(player)` to retrieve aggregated stats.
+- Items can define arbitrary `stats` (armor, speed, jump, gravity, knockback, or custom).  
+- Stats are stored in the item definition.  
+- Aggregation helpers can be added later — current code does not auto‑apply stats.
 
-> Stats are **not applied automatically** to gameplay — mods must use them (e.g. adjust physics, damage, etc.).
+---
 
 ## API Reference
 
 | Function                          | Description |
 |-----------------------------------|-------------|
 | `itemforge3d.register(modname, name, def)` | Register a tool, node, or craftitem |
-| `itemforge3d.equip(player, def)` | Equip an item into its defined slot |
-| `itemforge3d.unequip(player, slot)` | Unequip an item from a slot |
-| `itemforge3d.get_equipped(player)` | Get all equipped items by slot |
-| `itemforge3d.list_equipped(player)` | Get a list of equipped items |
-| `itemforge3d.get_slot(player, slot)` | Get the definition for a specific slot |
-| `itemforge3d.get_stats(player)` | Get aggregated stats for a player |
+| `itemforge3d.attach_entity(player, item_name)` | Attach an item’s 3D model to a player |
+| `itemforge3d.detach_entity(player)` | Detach the currently attached entity from a player |
+
+---
 
 ## Full Examples
 
-### 1. Tool with 3D Model (shaped recipe shorthand)
+### 1. Tool with 3D Model
 ```lua
 itemforge3d.register("mymod", "sword", {
     type = "tool",
@@ -158,40 +145,16 @@ itemforge3d.register("mymod", "sword", {
             rotation = {x=0, y=90, z=0}
         }
     },
-    stats = { damage = 5 }
+    on_attach = function(player, ent)
+        core.chat_send_player(player:get_player_name(), "Sword attached!")
+    end,
+    on_detach = function(player, ent)
+        core.chat_send_player(player:get_player_name(), "Sword detached!")
+    end,
 })
 ```
 
-### 2. Node with 3D Model (full craft passthrough)
-```lua
-itemforge3d.register("mymod", "magic_block", {
-    type = "node",
-    description = "Magic Block",
-    inventory_image = "magic_block.png",
-    craft = {
-        output = "mymod:magic_block",
-        recipe = {
-            {"default:mese_crystal", "default:mese_crystal", "default:mese_crystal"},
-            {"default:mese_crystal", "default:diamond", "default:mese_crystal"},
-            {"default:mese_crystal", "default:mese_crystal", "default:mese_crystal"}
-        }
-    },
-    attach_model = {
-        properties = {
-            mesh = "block.glb",
-            textures = {"magic_block_texture.png"},
-            visual_size = {x=0.5, y=0.5}
-        },
-        attach = {
-            bone = "Arm_Right",
-            position = {x=0, y=4, z=0},
-            rotation = {x=0, y=0, z=0}
-        }
-    }
-})
-```
-
-### 3. Craftitem with Dynamic Effect
+### 2. Craftitem with Dynamic Effect
 ```lua
 itemforge3d.register("mymod", "lantern", {
     type = "craftitem",
@@ -227,92 +190,15 @@ itemforge3d.register("mymod", "lantern", {
 })
 ```
 
-### 4. Helmet with Armor Stat
-```lua
-itemforge3d.register("mymod", "iron_helmet", {
-    type = "craftitem",
-    description = "Iron Helmet",
-    inventory_image = "iron_helmet.png",
-    slot = "helmet",
-    stats = { armor = 2 },
-    attach_model = {
-        properties = { mesh = "helmet.glb", textures = {"iron_helmet.png"} },
-        attach = { bone = "Head", position = {x=0,y=0,z=0} }
-    }
-})
-```
-
-### 5. Boots with Speed Bonus
-```lua
-itemforge3d.register("mymod", "swift_boots", {
-    type = "craftitem",
-    description = "Swift Boots",
-    inventory_image = "swift_boots.png",
-    slot = "boots",
-    stats = { speed = 0.3 },
-    attach_model = {
-        properties = { mesh = "boots.glb", textures = {"swift_boots.png"} },
-        attach = { bone = "Legs", position = {x=0,y=0,z=0} }
-    }
-})
-```
-
-### 6. Shield with Knockback Resistance
-```lua
-itemforge3d.register("mymod", "sturdy_shield", {
-    type = "tool",
-    description = "Sturdy Shield",
-    inventory_image = "shield.png",
-    slot = "shield",
-    stats = { knockback = -0.5 },
-    attach_model = {
-        properties = { mesh = "shield.glb", textures = {"shield.png"} },
-        attach = { bone = "Arm_Left", position = {x=0,y=5,z=0}, rotation = {x=0,y=0,z=0} }
-    }
-})
-```
-
-### 7. Chestplate with Defense Bonus
-```lua
-itemforge3d.register("mymod", "iron_chestplate", {
-    type = "craftitem",
-    description = "Iron Chestplate",
-    inventory_image = "iron_chestplate.png",
-    slot = "chest",
-    stats = { armor = 4 },
-    attach_model = {
-        properties = { mesh = "chestplate.glb", textures = {"iron_chestplate.png"} },
-        attach = { bone = "Chest", position = {x=0,y=0,z=0} }
-    }
-})
-```
-
-### 8. Legs with Jump Boost
-```lua
-itemforge3d.register("mymod", "spring_leggings", {
-    type = "craftitem",
-    description = "Spring Leggings",
-    inventory_image = "spring_leggings.png",
-    slot = "legs",
-    stats = { jump = 0.5 },
-    attach_model = {
-        properties = { mesh = "leggings.glb", textures = {"spring_leggings.png"} },
-        attach = { bone = "Legs", position = {x=0,y=0,z=0} }
-    }
-})
-```
+---
 
 ## Summary
 
-- Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.
-- Add `slot` to place items in equipment slots (`helmet`, `boots`, `shield`, `chest`, `legs`).
-- Add `attach_model` to show a **3D mesh** when equipped.
-- Use `update` for **animations, effects, or dynamic behavior**.
-- Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).
-- Stats are arbitrary and aggregated by the API, but not applied automatically.
-- Equipment is cleaned up on **death** or **leaveplayer**.
-- **Equipment now persists between sessions** - players keep their equipped items when logging out and back in.
-- Duplicate registrations log a warning.
-- The registered item will be named `modname:name`.
-- Optional callbacks `on_equip` and `on_unequip` let mods hook into lifecycle events.
-- Helper functions (`equip`, `get_stats`, `list_equipped`, `get_slot`, `unequip`) make it easy to manage equipment programmatically.
+- Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.  
+- Add `attach_model` to show a **3D mesh** when attached.  
+- Use `update` for **animations, effects, or dynamic behavior**.  
+- Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).  
+- Stats are arbitrary and stored in definitions, but not auto‑applied.  
+- Entities are pooled for performance and recycled on detach.  
+- Optional callbacks `on_attach` and `on_detach` let mods hook into lifecycle events.  
+- Helper functions (`attach_entity`, `detach_entity`) make it easy to manage visuals programmatically.  
