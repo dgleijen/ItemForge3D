@@ -3,6 +3,17 @@ local EQUIPED_ITEMS = {}
 local ENTITIES = {}
 local ENTITY_POOL = {}
 local ITEM_ID_COUNTER = 0 
+local EQUIP_CALLBACKS = {}
+local UNEQUIP_CALLBACKS = {}
+
+function IFORGE.register_on_equip(func)
+    table.insert(EQUIP_CALLBACKS, func)
+end
+
+function IFORGE.register_on_unequip(func)
+    table.insert(UNEQUIP_CALLBACKS, func)
+end
+
 
 local IFORGE = {}
 IFORGE.slots = { "shield", "helmet", "chest", "legs", "boots" }
@@ -22,11 +33,24 @@ local function get_entity_from_pool()
     return ent
 end
 
+local function cleanup_entity_pool()
+    local max_pool_size = 10
+    if #ENTITY_POOL > max_pool_size then
+        local excess = #ENTITY_POOL - max_pool_size
+        for i = 1, excess do
+            local ent = table.remove(ENTITY_POOL)
+            if ent then
+                ent:remove()
+            end
+        end
+    end
+end
+
 local function return_entity_to_pool(entity)
     if entity then
         entity:set_properties({
             visual = "mesh",
-            mesh = "blank.glb",
+            mesh = "itemforge3d_blank.glb",
             textures = {"blank.png"},
             visual_size = {x=1, y=1},
             pointable = false,
@@ -36,9 +60,15 @@ local function return_entity_to_pool(entity)
         
         entity:set_detach()
         entity:set_properties({visual_size = {x=0, y=0}})
-        
         table.insert(ENTITY_POOL, entity)
+        cleanup_entity_pool()
     end
+end
+
+function IFORGE.get_slot(player, slot)
+    if not player or not player:is_player() then return nil end
+    local pname = player:get_player_name()
+    return EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot] or nil
 end
 
 function IFORGE.register(modname, item_name, register_def)
@@ -84,7 +114,7 @@ end
 core.register_entity("itemforge3d:wield_entity", {
     initial_properties = {
         visual = "mesh",
-        mesh = "blank.glb",
+        mesh = "itemforge3d_blank.glb",
         textures = {"blank.png"},
         visual_size = {x=1, y=1},
         pointable = false,
@@ -93,27 +123,96 @@ core.register_entity("itemforge3d:wield_entity", {
     },
 })
 
-function IFORGE.equip(player, def)
+function IFORGE.unequip(player, slot)
+    if not player or not player:is_player() then
+        return false
+    end
+
+    local pname = player:get_player_name()
+
+    if slot and EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot] then
+        local def = EQUIPED_ITEMS[pname][slot]
+
+        if ENTITIES[pname] and ENTITIES[pname][slot] then
+            return_entity_to_pool(ENTITIES[pname][slot])
+            ENTITIES[pname][slot] = nil
+        end
+
+        EQUIPED_ITEMS[pname][slot] = nil
+
+        if def and def.stack then
+            local inv = player:get_inventory()
+            if inv then
+                inv:add_item("main", def.stack)
+            end
+        end
+
+        if def.def and def.def.on_unequip then
+            def.def.on_unequip(player, def.stack)
+        end
+
+        for _, cb in ipairs(UNEQUIP_CALLBACKS) do
+            cb(player, def.def, def.stack)
+        end
+
+        return true
+    end
+
+    if not slot and EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname].generic then
+        local list = EQUIPED_ITEMS[pname].generic
+        local entry = table.remove(list)
+
+        if entry and entry.entity then
+            return_entity_to_pool(entry.entity)
+        end
+
+        if entry and entry.stack then
+            local inv = player:get_inventory()
+            if inv then
+                inv:add_item("main", entry.stack)
+            end
+        end
+
+        if entry and entry.def and entry.def.on_unequip then
+            entry.def.on_unequip(player, entry.stack)
+        end
+
+        for _, cb in ipairs(UNEQUIP_CALLBACKS) do
+            cb(player, entry.def, entry.stack)
+        end
+
+        return true
+    end
+
+    return false
+end
+
+
+function IFORGE.equip(player, itemstack)
     if not player or not player:is_player() then
         core.log("error", "[itemforge3d] Invalid player object in IFORGE.equip")
         return false
     end
 
     local pname = player:get_player_name()
-    local slot = def.slot or "generic"
+    local itemname = itemstack:get_name()
+    local def = REGISTERED_ITEMS[itemname]
+    if not def then
+        core.log("error", "[itemforge3d] Item not registered: " .. itemname)
+        return false
+    end
 
     ENTITIES[pname] = ENTITIES[pname] or {}
     EQUIPED_ITEMS[pname] = EQUIPED_ITEMS[pname] or {}
 
-    if ENTITIES[pname][slot] then
-        IFORGE.unequip(player, slot)
+    local slot = def.slot
+
+    if slot and IFORGE.get_slot(player, slot) then
+        return false 
     end
 
     local ent = get_entity_from_pool()
-    if not ent then
-        core.log("error", "[itemforge3d] Failed to get entity from pool for " .. pname)
-        return false
-    end
+    if not ent then return false end
 
     if def.attach_model and def.attach_model.properties then
         ent:set_properties(def.attach_model.properties)
@@ -127,59 +226,30 @@ function IFORGE.equip(player, def)
         a.forced_visible or false
     )
 
-    ENTITIES[pname][slot] = ent
-    EQUIPED_ITEMS[pname][slot] = def
-
-    if def.on_equip then
-        def.on_equip(player, ent, slot, def)
+    if slot then
+        ENTITIES[pname][slot] = ent
+        EQUIPED_ITEMS[pname][slot] = {
+            def = def,
+            stack = itemstack:peek_item()
+        }
+    else
+        EQUIPED_ITEMS[pname].generic = EQUIPED_ITEMS[pname].generic or {}
+        table.insert(EQUIPED_ITEMS[pname].generic, {
+            def = def,
+            stack = itemstack:peek_item(),
+            entity = ent
+        })
     end
 
+    itemstack:take_item()
+    if def.on_equip then
+        def.on_equip(player, itemstack)
+    end
+    for _, cb in ipairs(EQUIP_CALLBACKS) do
+        cb(player, def, itemstack)
+    end
     return true
 end
-
-function IFORGE.unequip(player, slot)
-    if not player or not player:is_player() then
-        core.log("error", "[itemforge3d] Invalid player object in IFORGE.unequip")
-        return
-    end
-
-    local pname = player:get_player_name()
-    
-    local def = EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot]
-
-    if ENTITIES[pname] and ENTITIES[pname][slot] then
-        return_entity_to_pool(ENTITIES[pname][slot])
-        ENTITIES[pname][slot] = nil
-    end
-
-    if EQUIPED_ITEMS[pname] then
-        EQUIPED_ITEMS[pname][slot] = nil
-    end
-
-    if def and def.on_unequip then
-        def.on_unequip(player, slot, def)
-    end
-end
-
-local function cleanup_entity_pool()
-    local max_pool_size = 10
-    while #ENTITY_POOL > max_pool_size do
-        local ent = table.remove(ENTITY_POOL)
-        if ent then
-            ent:remove()
-        end
-    end
-end
-
-
-local last_cleanup = 0
-core.register_globalstep(function(dtime)
-    last_cleanup = last_cleanup + dtime
-    if last_cleanup > 300 then
-        cleanup_entity_pool()
-        last_cleanup = 0
-    end
-end)
 
 function IFORGE.get_equipped(player)
     if not player or not player:is_player() then return {} end
@@ -198,11 +268,6 @@ function IFORGE.list_equipped(player)
     return list
 end
 
-function IFORGE.get_slot(player, slot)
-    if not player or not player:is_player() then return nil end
-    local pname = player:get_player_name()
-    return EQUIPED_ITEMS[pname] and EQUIPED_ITEMS[pname][slot] or nil
-end
 
 function IFORGE.get_stats(player)
     if not player or not player:is_player() then return {} end
@@ -234,5 +299,43 @@ function IFORGE.get_stats(player)
     return player_stats
 end
 
+minetest.register_chatcommand("equip", {
+    params = "<itemname>",
+    description = "Equip an item by name",
+    func = function(name, param)
+        local player = minetest.get_player_by_name(name)
+        if not player then return false, "Player not found" end
 
-itemforge3d = ITEMFORGE
+        local inv = player:get_inventory()
+        local stack = inv:remove_item("main", param)
+        if stack:is_empty() then
+            return false, "You don't have " .. param
+        end
+
+        local ok = IFORGE.equip(player, stack)
+        if ok then
+            return true, "Equipped " .. param
+        else
+            inv:add_item("main", stack) 
+            return false, "Could not equip " .. param
+        end
+    end
+})
+
+core.register_chatcommand("unequip", {
+    params = "<slot>",
+    description = "Unequip an item from a slot",
+    func = function(name, param)
+        local player = minetest.get_player_by_name(name)
+        if not player then return false, "Player not found" end
+
+        local ok = IFORGE.unequip(player, param)
+        if ok then
+            return true, "Unequipped from slot " .. param
+        else
+            return false, "No item equipped in slot " .. param
+        end
+    end
+})
+
+itemforge3d = IFORGE
