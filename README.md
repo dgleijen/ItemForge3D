@@ -1,128 +1,42 @@
-# ItemForge3D API (Updated)
-
-## How to Register Items
-
-Use the function:
-
+## Register Items
 ```lua
 itemforge3d.register(modname, name, def)
 ```
+Registers a tool, node, or craftitem under the name `modname:name`.
 
-- `modname`: The mod's namespace (e.g. `"mymod"`).  
-- `name`: The item's unique name (e.g. `"sword"`).  
-- `def`: A table with item definition and optional 3D model info.  
-
-> The final registered item will be named as `modname:name`, for example: `"mymod:sword"`.
-
----
-
-## Supported Item Types
-
-You can register **three kinds of items**:
-
-1. **Tools** → `type = "tool"`  
-   - Pickaxes, swords, axes, shields, etc.  
-   - Registered with `core.register_tool`.
-
-2. **Nodes** → `type = "node"`  
-   - Blocks you can place in the world.  
-   - Registered with `core.register_node`.
-
-3. **Craftitems** → `type = "craftitem"`  
-   - Misc items (food, gems, scrolls, lanterns).  
-   - Registered with `core.register_craftitem`.
+### Definition Fields
+- `type`: `"tool"`, `"node"`, or `"craftitem"`
+- `description`: Inventory description
+- `inventory_image`: Icon texture
+- `recipe`: Shaped craft recipe
+- `craft`: Full craft definition (shapeless, cooking, fuel, etc.)
+- `properties`: Entity properties (mesh, textures, size)
+- `attach`: Attach position/rotation/bone
+- `on_attach`: Callback when entity is attached
+- `on_detach`: Callback when entity is detached
 
 ---
 
-## Definition Fields
-
-Here’s what you can put inside `def`:
-
-| Field             | Type    | Description |
-|-------------------|---------|-------------|
-| `type`            | string  | `"tool"`, `"node"`, or `"craftitem"` |
-| `description`     | string  | Text shown in inventory |
-| `inventory_image` | string  | Icon texture for inventory |
-| `recipe`          | table   | Shaped craft recipe (shorthand) |
-| `craft`           | table   | Full craft definition (shapeless, cooking, fuel, etc.) |
-| `attach`    | table   | Defines the 3D model to attach when used |
-| `on_attach`       | function| Called when entity is attached |
-| `on_detach`       | function| Called when entity is detached |
-
----
-
-## attach_model Fields
-
-Inside `attach_model`, you can define:
-
-| Field        | Type     | Description |
-|--------------|----------|-------------|
-| `properties` | table    | Entity properties (mesh, textures, size) |
-| `attach`     | table    | Where/how to attach to player |
-| `update`     | function | Optional per-frame logic (animations, effects) |
-
-### Example `properties`
-```lua
-properties = {
-    mesh = "sword.glb",
-    textures = {"sword_texture.png"},
-    visual_size = {x=1, y=1}
-}
-```
-
-### Example `attach`
-```lua
-attach = {
-    bone = "Arm_Right",
-    position = {x=0, y=5, z=0},
-    rotation = {x=0, y=90, z=0},
-    forced_visible = false
-}
-```
-
-### Example `update`
-```lua
-update = function(ent, player)
-    if player:get_player_control().dig then
-        ent:set_animation({x=0,y=20}, 15, 0) -- swing animation
-    end
-end
-```
-
----
-
-## Attach/Detach Lifecycle
-
-The API manages **attach/detach** automatically:
-
-- `itemforge3d.attach_entity(player, item_name)` → attaches the item’s 3D model to the player.  
-- `itemforge3d.detach_entity(player)` → detaches the currently attached entity from the player.  
-- Entities are pooled and recycled for performance.  
-- Optional callbacks `on_attach` and `on_detach` are triggered when visuals are shown/hidden.
-
----
-
-## Stats System
-
-- Items can define arbitrary `stats` (armor, speed, jump, gravity, knockback, or custom).  
-- Stats are stored in the item definition.  
-- Aggregation helpers can be added later — current code does not auto‑apply stats.
+## Attach/Detach
+- `itemforge3d.attach_entity(player, item_name)` → attach a 3D model to a player  
+- `itemforge3d.detach_entity(player, item_name)` → detach a specific item’s 3D model from a player  
+- Multiple items can be attached per player  
 
 ---
 
 ## API Reference
 
-| Function                          | Description |
-|-----------------------------------|-------------|
+| Function | Description |
+|----------|-------------|
 | `itemforge3d.register(modname, name, def)` | Register a tool, node, or craftitem |
 | `itemforge3d.attach_entity(player, item_name)` | Attach an item’s 3D model to a player |
-| `itemforge3d.detach_entity(player)` | Detach the currently attached entity from a player |
+| `itemforge3d.detach_entity(player, item_name)` | Detach a specific item’s 3D model from a player |
 
 ---
 
-## Full Examples
+## Examples
 
-### 1. Tool with 3D Model
+### Tool with 3D Model
 ```lua
 itemforge3d.register("mymod", "sword", {
     type = "tool",
@@ -133,17 +47,15 @@ itemforge3d.register("mymod", "sword", {
         {"", "default:stick", ""},
         {"", "default:stick", ""}
     },
-    attach_model = {
-        properties = {
-            mesh = "sword.glb",
-            textures = {"sword_texture.png"},
-            visual_size = {x=1, y=1}
-        },
-        attach = {
-            bone = "Arm_Right",
-            position = {x=0, y=5, z=0},
-            rotation = {x=0, y=90, z=0}
-        }
+    properties = {
+        mesh = "sword.glb",
+        textures = {"sword_texture.png"},
+        visual_size = {x=1, y=1}
+    },
+    attach = {
+        bone = "Arm_Right",
+        pos = {x=0, y=5, z=0},
+        rot = {x=0, y=90, z=0}
     },
     on_attach = function(player, ent)
         core.chat_send_player(player:get_player_name(), "Sword attached!")
@@ -154,7 +66,7 @@ itemforge3d.register("mymod", "sword", {
 })
 ```
 
-### 2. Craftitem with Dynamic Effect
+### Craftitem with Simple Effect
 ```lua
 itemforge3d.register("mymod", "lantern", {
     type = "craftitem",
@@ -164,41 +76,32 @@ itemforge3d.register("mymod", "lantern", {
         {"default:steel_ingot", "default:torch", "default:steel_ingot"},
         {"", "default:glass", ""}
     },
-    attach_model = {
-        properties = {
-            mesh = "lantern.glb",
-            textures = {"lantern_texture.png"},
-            visual_size = {x=0.7, y=0.7}
-        },
-        attach = {
-            bone = "Arm_Right",
-            position = {x=0, y=6, z=0},
-            rotation = {x=0, y=0, z=0}
-        },
-        update = function(ent, player)
-            if player:get_player_control().sneak then
-                core.add_particlespawner({
-                    amount = 5,
-                    time = 0.1,
-                    minpos = player:get_pos(),
-                    maxpos = player:get_pos(),
-                    texture = "light_particle.png"
-                })
-            end
-        end
-    }
+    properties = {
+        mesh = "lantern.glb",
+        textures = {"lantern_texture.png"},
+        visual_size = {x=0.7, y=0.7}
+    },
+    attach = {
+        bone = "Arm_Right",
+        pos = {x=0, y=6, z=0},
+        rot = {x=0, y=0, z=0}
+    },
+    on_attach = function(player, ent)
+        core.chat_send_player(player:get_player_name(), "Lantern attached!")
+    end,
+    on_detach = function(player, ent)
+        core.chat_send_player(player:get_player_name(), "Lantern detached!")
+    end,
 })
 ```
 
 ---
 
 ## Summary
+- Register items with `itemforge3d.register`.  
+- Attach visuals with `itemforge3d.attach_entity`.  
+- Detach visuals with `itemforge3d.detach_entity`.  
+- Multiple items can be attached per player.  
+- Optional callbacks let you hook into attach/detach events.  
 
-- Use `itemforge3d.register(modname, name, def)` for **tools, nodes, or craftitems**.  
-- Add `attach_model` to show a **3D mesh** when attached.  
-- Use `update` for **animations, effects, or dynamic behavior**.  
-- Recipes can be declared either with `recipe` (shaped shorthand) or `craft` (full passthrough).  
-- Stats are arbitrary and stored in definitions, but not auto‑applied.  
-- Entities are pooled for performance and recycled on detach.  
-- Optional callbacks `on_attach` and `on_detach` let mods hook into lifecycle events.  
-- Helper functions (`attach_entity`, `detach_entity`) make it easy to manage visuals programmatically.  
+
