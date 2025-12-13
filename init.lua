@@ -97,7 +97,7 @@ end
 core.register_entity("itemforge3d:wield_entity", {
     initial_properties = {
         visual = "mesh",
-        mesh = "itemforge3d_blank.glb",
+        mesh = "blank.glb",
         textures = {"blank.png"},
         visual_size = {x=1, y=1},
         pointable = false,
