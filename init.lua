@@ -48,10 +48,12 @@ function IFORGE.attach_entity(player, itemstack, opts)
     end
 
     local attach = def.attach or {}
+    local attach = def.attach or {}
     ent:set_attach(player,
         attach.bone or "",
         attach.pos or {x=0,y=0,z=0},
-        attach.rot or {x=0,y=0,z=0}
+        attach.rot or {x=0,y=0,z=0},
+        attach.force_visible or false,
     )
 
     local name = player:get_player_name()
