@@ -3,13 +3,6 @@ local ENTITIES = {}
 local ENTITY_POOL = {}
 local IFORGE = {}
 
-local function is_valid_slot(slot)
-    for _, s in ipairs(IFORGE.slots or {}) do
-        if s == slot then return true end
-    end
-    return false
-end
-
 local function get_entity_from_pool()
     local ent = table.remove(ENTITY_POOL, 1) -- FIFO reuse
     if not ent then
