@@ -117,9 +117,6 @@ itemforge3d.register("mymod", "lantern", {
 -- Save current attachments
 local saved = itemforge3d.get_attached_entries(player)
 
--- Detach everything
-while itemforge3d.detach_entity(player) do end
-
 -- Later, reload them
 itemforge3d.reload_attached_items(player, saved)
 ```
