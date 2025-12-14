@@ -28,6 +28,9 @@ function IFORGE.register(modname, item_name, register_def)
         })
     end
 
+    -- NEW: default wield_mode if not specified
+    register_def.wield_mode = register_def.wield_mode or "model"
+
     REGISTERED_ITEMS[full_name] = register_def
     return true
 end
@@ -38,15 +41,25 @@ function IFORGE.attach_entity(player, itemstack, opts)
 
     local item_name = itemstack:get_name()
     local def = REGISTERED_ITEMS[item_name]
-    if not def then return false end
+    if not def or def.wield_mode == "none" then return false end
 
-    local ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_entity")
+    local ent
+    if def.wield_mode == "model" then
+        ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_entity")
+        if ent and def.properties then
+            ent:set_properties(def.properties)
+        end
+    elseif def.wield_mode == "image" then
+        ent = core.add_entity({x=0,y=0,z=0}, "itemforge3d:wield_image_entity")
+        if ent then
+            ent:set_properties({
+                textures = { item_name },
+                visual_size = {x=1, y=1},
+            })
+        end
+    end
     if not ent then return false end
 
-    if def.properties then
-        ent:set_properties(def.properties)
-    end
-    
     local attach = def.attach or {}
     ent:set_attach(player,
         attach.bone or "",
@@ -98,6 +111,18 @@ core.register_entity("itemforge3d:wield_entity", {
     initial_properties = {
         visual = "mesh",
         mesh = "blank.glb",
+        textures = {"blank.png"},
+        visual_size = {x=1, y=1},
+        pointable = false,
+        physical = false,
+        collide_with_objects = false,
+    },
+})
+
+-- NEW: fallback entity for wield_mode="image"
+core.register_entity("itemforge3d:wield_image_entity", {
+    initial_properties = {
+        visual = "wielditem",
         textures = {"blank.png"},
         visual_size = {x=1, y=1},
         pointable = false,
