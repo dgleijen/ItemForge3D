@@ -1,6 +1,6 @@
 # ItemForge3D
 
-ItemForge3D provides a **safe, extensible API** for registering items and attaching wield entities to players. It supports lifecycle management, duplicate protection, and modder‑friendly callbacks.
+ItemForge3D provides a **safe, extensible API** for attaching wield entities to players. It builds on Minetest’s built‑in item registry, storing only the **extra metadata** you need for visuals and lifecycle hooks.
 
 ---
 
@@ -11,14 +11,14 @@ itemforge3d.register(modname, name, def)
 Registers a tool, node, or craftitem under the name `modname:name`.
 
 ### Definition Fields
-- `type`: `"tool"`, `"node"`, or `"craftitem"`
-- `description`: Inventory description
-- `inventory_image`: Icon texture
-- `craft`: Full craft definition (shapeless, cooking, fuel, etc.)
-- `properties`: Entity properties (mesh, textures, size)
-- `attach`: Attach position/rotation/bone
-- `on_attach`: Callback when entity is attached
-- `on_reload`: Callback when entity is reloaded after persistence
+- **Standard fields** (`type`, `description`, `inventory_image`, etc.) → handled by Minetest’s own registry (`minetest.registered_items`).
+- **ItemForge3D extras**:
+  - `properties`: Entity properties (mesh, textures, size)
+  - `attach`: Attach position/rotation/bone
+  - `on_attach`: Callback when entity is attached
+  - `on_reload`: Callback when entity is reloaded after persistence
+- **Crafting**:
+  - `craft`: Full craft definition (shapeless, cooking, fuel, etc.)
 
 ---
 
@@ -37,6 +37,7 @@ Multiple items can be attached per player, each tracked by `id`.
 - `itemforge3d.get_attached_items(player)` → returns a list of item names currently attached
 - `itemforge3d.get_attached_entries(player)` → returns detailed entries `{item_name, id, stack}`
 - `itemforge3d.reload_attached_items(player, item_list)` → re‑attaches items from a saved list
+- `itemforge3d.get_extras(item_name)` → returns the ItemForge3D‑specific metadata for a registered item
 
 ---
 
@@ -44,7 +45,7 @@ Multiple items can be attached per player, each tracked by `id`.
 
 | Function | Description |
 |----------|-------------|
-| `itemforge3d.register(modname, name, def)` | Register a tool, node, or craftitem |
+| `itemforge3d.register(modname, name, def)` | Register a tool, node, or craftitem with extras |
 | `itemforge3d.attach_entity(player, itemstack, opts)` | Attach an item’s wield entity to a player |
 | `itemforge3d.detach_entity(player, id)` | Detach a specific item’s wield entity by identifier |
 | `itemforge3d.detach_all(player)` | Detach all wield entities from a player |
@@ -52,6 +53,7 @@ Multiple items can be attached per player, each tracked by `id`.
 | `itemforge3d.get_attached_items(player)` | Get a list of attached item names |
 | `itemforge3d.get_attached_entries(player)` | Get detailed attached entries (name, id, stack) |
 | `itemforge3d.reload_attached_items(player, item_list)` | Reattach items from a saved list |
+| `itemforge3d.get_extras(item_name)` | Get ItemForge3D‑specific metadata for an item |
 
 ---
 
@@ -82,10 +84,10 @@ itemforge3d.register("mymod", "sword", {
         rot = {x=0, y=90, z=0}
     },
     on_attach = function(player, ent)
-        core.chat_send_player(player:get_player_name(), "Sword attached!")
+        minetest.chat_send_player(player:get_player_name(), "Sword attached!")
     end,
     on_reload = function(player, ent, entry)
-        core.chat_send_player(player:get_player_name(), "Sword reloaded!")
+        minetest.chat_send_player(player:get_player_name(), "Sword reloaded!")
     end,
 })
 ```
@@ -129,9 +131,10 @@ itemforge3d.reload_attached_items(player, saved)
 ---
 
 ## Summary
+- **Base item info** (type, description, inventory image, etc.) comes from Minetest’s built‑in registry.  
+- **ItemForge3D stores only extras**: `properties`, `attach`, `on_attach`, `on_reload`.  
 - Attach visuals with `itemforge3d.attach_entity`.  
 - Detach visuals with `itemforge3d.detach_entity` or `detach_all`.  
 - Multiple items can be attached per player, tracked by `id`.  
 - Use `get_attached_items` or `get_attached_entries` plus `reload_attached_items` to snapshot and restore attachments.  
-- Optional callbacks (`on_attach`, `on_reload`) let you hook into lifecycle events.  
-- Use `craft` for registering recipes (shaped, shapeless, cooking, fuel, etc.).  
+- Use `get_extras(item_name)` to inspect ItemForge3D‑specific metadata.  
