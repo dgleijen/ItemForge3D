@@ -129,7 +129,6 @@ itemforge3d.reload_attached_items(player, saved)
 ---
 
 ## Summary
-- Items wield with their **inventory image by default** unless you provide custom `properties` and `attach` fields.  
 - Attach visuals with `itemforge3d.attach_entity`.  
 - Detach visuals with `itemforge3d.detach_entity` or `detach_all`.  
 - Multiple items can be attached per player, tracked by `id`.  
