@@ -158,7 +158,7 @@ function IFORGE.attach_entity(player, itemstack, opts)
 end
 
 
--- Detach helpers
+-- Call on_detach when removing entities
 function IFORGE.detach_entity(player, id)
     local name = player:get_player_name()
     local list = ENTITIES[name]
@@ -166,6 +166,10 @@ function IFORGE.detach_entity(player, id)
 
     for i, e in ipairs(list) do
         if e.id == id then
+            local extras = EXTRAS[e.item_name]
+            if extras and extras.on_detach then
+                extras.on_detach(player, e.entity, e)
+            end
             e.entity:remove()
             table.remove(list, i)
             return true
@@ -173,6 +177,7 @@ function IFORGE.detach_entity(player, id)
     end
     return false
 end
+
 
 function IFORGE.detach_all(player)
     local name = player:get_player_name()
