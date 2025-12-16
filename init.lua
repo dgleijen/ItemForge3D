@@ -23,7 +23,6 @@ local function merge_properties(base, override)
     local props = deepcopy(base)
     if override then
         for k, v in pairs(override) do
-            -- if both base and override are tables, merge recursively
             if type(v) == "table" and type(props[k]) == "table" then
                 props[k] = merge_properties(props[k], v)
             else
@@ -33,6 +32,7 @@ local function merge_properties(base, override)
     end
     return props
 end
+
 -- Register items with Minetest, store only extras
 function IFORGE.register(modname, item_name, def)
     local full_name = modname .. ":" .. item_name
@@ -58,11 +58,10 @@ function IFORGE.register(modname, item_name, def)
 
     -- store only ItemForge3D-specific fields
     EXTRAS[full_name] = {
-        properties = deepcopy(def.properties),  -- always used by attach_entity
+        properties = deepcopy(def.properties),
         attach     = deepcopy(def.attach),
         on_attach  = def.on_attach,
         on_reload  = def.on_reload,
-        on_detach  = def.on_detach,
         wieldview  = def.wieldview,
     }
 
@@ -88,8 +87,6 @@ function IFORGE.update_extras(full_name, fields)
     return true
 end
 
-
--- Accessor for all registered item names with extras
 function IFORGE.get_registered_item_names()
     local names = {}
     for name, _ in pairs(EXTRAS) do
@@ -98,7 +95,6 @@ function IFORGE.get_registered_item_names()
     return table.copy(names)
 end
 
--- Accessor for all extras
 function IFORGE.get_registered_items()
     local items = {}
     for name, extras in pairs(EXTRAS) do
@@ -107,7 +103,6 @@ function IFORGE.get_registered_items()
     return table.copy(items)
 end
 
--- Filter extras by type (using Minetest’s registry for type info)
 function IFORGE.get_registered_items_by_type(item_type)
     local items = {}
     for name, extras in pairs(EXTRAS) do
@@ -127,7 +122,6 @@ function IFORGE.attach_entity(player, itemstack, opts)
     local extras = EXTRAS[item_name]
     if not extras then return false end
 
-    -- choose which base entity to spawn
     local ent
     if extras.wieldview == "wielditem" then
         ent = core.add_entity(player:get_pos(), "itemforge3d:wield_entity_item")
@@ -136,22 +130,16 @@ function IFORGE.attach_entity(player, itemstack, opts)
     end
     if not ent then return false end
 
-    -- get current properties from the entity
     local current = ent:get_properties()
-
-    -- merge current with extras.properties
     local props = merge_properties(current, extras.properties)
 
-    -- if wieldview is wielditem, enforce wielditem visual
     if extras.wieldview == "wielditem" then
         props.visual = "wielditem"
         props.wield_item = item_name
     end
 
-    -- apply merged properties
     ent:set_properties(props)
 
-    -- apply attachment info
     local attach = extras.attach or {}
     ent:set_attach(player,
         attach.bone or "",
@@ -166,10 +154,6 @@ function IFORGE.attach_entity(player, itemstack, opts)
     if opts.id then
         for i, e in ipairs(ENTITIES[name]) do
             if e.id == opts.id then
-                local old_extras = EXTRAS[e.item_name]
-                if old_extras and old_extras.on_detach then
-                    old_extras.on_detach(player, e.entity, e)
-                end
                 e.entity:remove()
                 table.remove(ENTITIES[name], i)
                 break
@@ -188,7 +172,6 @@ function IFORGE.attach_entity(player, itemstack, opts)
     return true
 end
 
--- Call on_detach when removing entities
 function IFORGE.detach_entity(player, id)
     local name = player:get_player_name()
     local list = ENTITIES[name]
@@ -196,10 +179,6 @@ function IFORGE.detach_entity(player, id)
 
     for i, e in ipairs(list) do
         if e.id == id then
-            local extras = EXTRAS[e.item_name]
-            if extras and extras.on_detach then
-                extras.on_detach(player, e.entity, e)
-            end
             e.entity:remove()
             table.remove(list, i)
             return true
@@ -214,17 +193,12 @@ function IFORGE.detach_all(player)
     if not list then return false end
 
     for _, e in ipairs(list) do
-        local extras = EXTRAS[e.item_name]
-        if extras and extras.on_detach then
-            extras.on_detach(player, e.entity, e)
-        end
         e.entity:remove()
     end
     ENTITIES[name] = nil
     return true
 end
 
--- Safe entity inspection
 function IFORGE.get_entities(player)
     local list = ENTITIES[player:get_player_name()] or {}
     local copy = {}
@@ -261,7 +235,6 @@ function IFORGE.get_attached_entries(player)
     return out
 end
 
--- Reapply attachment info to an existing entity
 function IFORGE.reapply_attachment(player, entry)
     local extras = EXTRAS[entry.item_name]
     if not extras then return false end
@@ -276,7 +249,6 @@ function IFORGE.reapply_attachment(player, entry)
     return true
 end
 
--- Reload attached items (reapply if entity exists, otherwise reattach)
 function IFORGE.reload_attached_items(player, item_list)
     item_list = item_list or IFORGE.get_attached_entries(player)
     if not item_list or #item_list == 0 then return false end
@@ -285,7 +257,6 @@ function IFORGE.reload_attached_items(player, item_list)
         local extras = EXTRAS[entry.item_name]
         local entries = ENTITIES[player:get_player_name()] or {}
 
-        -- find the existing attached entity by id
         local attached
         for _, e in ipairs(entries) do
             if e.id == entry.id then
@@ -295,20 +266,17 @@ function IFORGE.reload_attached_items(player, item_list)
         end
 
         if attached then
-            -- just reapply new attachment info
             IFORGE.reapply_attachment(player, attached)
             if extras and extras.on_reload then
                 extras.on_reload(player, attached.entity, attached)
             end
         else
-            -- fallback: attach fresh if missing
             IFORGE.attach_entity(player, entry.stack, { id = entry.id })
         end
     end
     return true
 end
 
--- Base mesh wield entity
 core.register_entity("itemforge3d:wield_entity", {
     initial_properties = {
         visual = "mesh",
@@ -321,11 +289,10 @@ core.register_entity("itemforge3d:wield_entity", {
     },
 })
 
--- Base wielditem entity (empty placeholder)
 core.register_entity("itemforge3d:wield_entity_item", {
     initial_properties = {
         visual = "wielditem",
-        wield_item = "",  -- empty by default, will be overridden
+        wield_item = "",
         visual_size = {x=1, y=1},
         pointable = false,
         physical = false,
