@@ -2,22 +2,37 @@ local EXTRAS = {}   -- only ItemForge3D-specific metadata
 local ENTITIES = {}
 local IFORGE = {}
 
+-- Simple deepcopy utility
+local function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else
+        copy = orig
+    end
+    return copy
+end
+
 -- helper: deep merge of two property tables
 local function merge_properties(base, override)
-    local props = table.deepcopy(base)
+    local props = deepcopy(base)
     if override then
         for k, v in pairs(override) do
             -- if both base and override are tables, merge recursively
             if type(v) == "table" and type(props[k]) == "table" then
                 props[k] = merge_properties(props[k], v)
             else
-                props[k] = table.deepcopy(v)
+                props[k] = deepcopy(v)
             end
         end
     end
     return props
 end
-
 -- Register items with Minetest, store only extras
 function IFORGE.register(modname, item_name, def)
     local full_name = modname .. ":" .. item_name
@@ -43,8 +58,8 @@ function IFORGE.register(modname, item_name, def)
 
     -- store only ItemForge3D-specific fields
     EXTRAS[full_name] = {
-        properties = table.deepcopy(def.properties),  -- always used by attach_entity
-        attach     = table.deepcopy(def.attach),
+        properties = deepcopy(def.properties),  -- always used by attach_entity
+        attach     = deepcopy(def.attach),
         on_attach  = def.on_attach,
         on_reload  = def.on_reload,
         on_detach  = def.on_detach,
@@ -57,7 +72,7 @@ end
 -- Accessor for extras
 function IFORGE.get_extras(full_name)
     local extras = EXTRAS[full_name]
-    return extras and table.deepcopy(extras) or nil
+    return extras and deepcopy(extras) or nil
 end
 
 function IFORGE.update_extras(full_name, fields)
@@ -67,7 +82,7 @@ function IFORGE.update_extras(full_name, fields)
         if type(v) == "table" and type(extras[k]) == "table" then
             extras[k] = merge_properties(extras[k], v)
         else
-            extras[k] = table.deepcopy(v)
+            extras[k] = deepcopy(v)
         end
     end
     return true
@@ -87,7 +102,7 @@ end
 function IFORGE.get_registered_items()
     local items = {}
     for name, extras in pairs(EXTRAS) do
-        table.insert(items, { name = name, def = table.deepcopy(extras) })
+        table.insert(items, { name = name, def = deepcopy(extras) })
     end
     return table.copy(items)
 end
@@ -98,7 +113,7 @@ function IFORGE.get_registered_items_by_type(item_type)
     for name, extras in pairs(EXTRAS) do
         local base = minetest.registered_items[name]
         if base and base.type == item_type then
-            table.insert(items, { name = name, def = table.deepcopy(extras) })
+            table.insert(items, { name = name, def = deepcopy(extras) })
         end
     end
     return table.copy(items)
