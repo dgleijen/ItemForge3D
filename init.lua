@@ -2,12 +2,17 @@ local EXTRAS = {}   -- only ItemForge3D-specific metadata
 local ENTITIES = {}
 local IFORGE = {}
 
--- helper: shallow merge of two property tables
+-- helper: deep merge of two property tables
 local function merge_properties(base, override)
-    local props = table.copy(base)
+    local props = table.deepcopy(base)
     if override then
         for k, v in pairs(override) do
-            props[k] = v
+            -- if both base and override are tables, merge recursively
+            if type(v) == "table" and type(props[k]) == "table" then
+                props[k] = merge_properties(props[k], v)
+            else
+                props[k] = table.deepcopy(v)
+            end
         end
     end
     return props
@@ -18,6 +23,7 @@ function IFORGE.register(modname, item_name, def)
     local full_name = modname .. ":" .. item_name
 
     if EXTRAS[full_name] then
+        minetest.log("warning", "[ItemForge3D] Duplicate registration attempt for " .. full_name)
         return false
     end
 
@@ -37,10 +43,11 @@ function IFORGE.register(modname, item_name, def)
 
     -- store only ItemForge3D-specific fields
     EXTRAS[full_name] = {
-        properties = def.properties,  -- always used by attach_entity
-        attach     = def.attach,
+        properties = table.deepcopy(def.properties),  -- always used by attach_entity
+        attach     = table.deepcopy(def.attach),
         on_attach  = def.on_attach,
         on_reload  = def.on_reload,
+        on_detach  = def.on_detach,
         wieldview  = def.wieldview,
     }
 
@@ -49,18 +56,23 @@ end
 
 -- Accessor for extras
 function IFORGE.get_extras(full_name)
-    return EXTRAS[full_name] and table.copy(EXTRAS[full_name]) or nil
+    local extras = EXTRAS[full_name]
+    return extras and table.deepcopy(extras) or nil
 end
 
--- Update extras safely
 function IFORGE.update_extras(full_name, fields)
     local extras = EXTRAS[full_name]
     if not extras then return false end
     for k, v in pairs(fields) do
-        extras[k] = table.copy(v)
+        if type(v) == "table" and type(extras[k]) == "table" then
+            extras[k] = merge_properties(extras[k], v)
+        else
+            extras[k] = table.deepcopy(v)
+        end
     end
     return true
 end
+
 
 -- Accessor for all registered item names with extras
 function IFORGE.get_registered_item_names()
@@ -75,7 +87,7 @@ end
 function IFORGE.get_registered_items()
     local items = {}
     for name, extras in pairs(EXTRAS) do
-        table.insert(items, { name = name, def = table.copy(extras) })
+        table.insert(items, { name = name, def = table.deepcopy(extras) })
     end
     return table.copy(items)
 end
@@ -86,7 +98,7 @@ function IFORGE.get_registered_items_by_type(item_type)
     for name, extras in pairs(EXTRAS) do
         local base = minetest.registered_items[name]
         if base and base.type == item_type then
-            table.insert(items, { name = name, def = table.copy(extras) })
+            table.insert(items, { name = name, def = table.deepcopy(extras) })
         end
     end
     return table.copy(items)
@@ -139,6 +151,10 @@ function IFORGE.attach_entity(player, itemstack, opts)
     if opts.id then
         for i, e in ipairs(ENTITIES[name]) do
             if e.id == opts.id then
+                local old_extras = EXTRAS[e.item_name]
+                if old_extras and old_extras.on_detach then
+                    old_extras.on_detach(player, e.entity, e)
+                end
                 e.entity:remove()
                 table.remove(ENTITIES[name], i)
                 break
@@ -156,7 +172,6 @@ function IFORGE.attach_entity(player, itemstack, opts)
     if extras.on_attach then extras.on_attach(player, ent) end
     return true
 end
-
 
 -- Call on_detach when removing entities
 function IFORGE.detach_entity(player, id)
@@ -178,16 +193,19 @@ function IFORGE.detach_entity(player, id)
     return false
 end
 
-
 function IFORGE.detach_all(player)
     local name = player:get_player_name()
     local list = ENTITIES[name]
     if not list then return false end
 
     for _, e in ipairs(list) do
+        local extras = EXTRAS[e.item_name]
+        if extras and extras.on_detach then
+            extras.on_detach(player, e.entity, e)
+        end
         e.entity:remove()
     end
-    ENTITIES[name] = {}
+    ENTITIES[name] = nil
     return true
 end
 
